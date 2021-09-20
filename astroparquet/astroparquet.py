@@ -3,7 +3,6 @@ import numpy as np
 from astropy.table import Table, QTable, serialize, meta
 from astropy.utils.data_info import serialize_context_as
 
-import astropy.units as u
 import pyarrow as pa
 from pyarrow import parquet, dataset
 
