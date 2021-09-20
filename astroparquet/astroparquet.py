@@ -110,7 +110,6 @@ def read_astroparquet(filename, columns=None, filter=None):
     for name in names:
         data[name][:] = pa_tbl[name].to_numpy()
 
-    # tbl = Table(data=data, units=units, descriptions=descriptions)
     tbl = Table(data=data)
     if meta_dict is not None:
         tbl.meta = meta_dict
