@@ -32,10 +32,6 @@ def write_astroparquet(filename, tbl, clobber=False):
 
     metadata = {}
     for col in encode_tbl.columns:
-        # if encode_tbl[col].unit is not None:
-        #     metadata[f'table::unit::{col}'] = str(tbl[col].unit)
-        # if encode_tbl[col].description is not None:
-        #     metadata[f'table::description::{col}'] = tbl[col].description
         # Special-case string types to record the length
         if encode_tbl[col].dtype.type is np.str_:
             metadata[f'table::strlen::{col}'] = str(tbl[col].dtype.itemsize//4)
@@ -107,20 +103,6 @@ def read_astroparquet(filename, columns=None, filter=None):
             dtype.append('U%d' % (int(md[f'table::strlen::{name}'])))
         else:
             dtype.append(schema.field(name).type.to_pandas_dtype())
-
-    # units = []
-    # for name in names:
-    #     if f'table::unit::{name}' in md:
-    #         units.append(u.Unit(md[f'table::unit::{name}']))
-    #     else:
-    #         units.append(None)
-
-    # descriptions = []
-    # for name in names:
-    #     if f'table::description::{name}' in md:
-    #         descriptions.append(md[f'table::description::{name}'])
-    #     else:
-    #         descriptions.append(None)
 
     pa_tbl = ds.to_table(columns=names, filter=None)
     data = np.zeros(pa_tbl.num_rows, dtype=list(zip(names, dtype)))
