@@ -86,8 +86,6 @@ def read_astroparquet(filename, columns=None, filter=None):
     else:
         meta_hdr = None
 
-    names = schema.names
-
     full_table_columns = {name: name for name in schema.names}
     has_serialized_columns = False
     if '__serialized_columns__' in meta_dict:
