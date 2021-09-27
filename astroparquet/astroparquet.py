@@ -94,7 +94,6 @@ def read_astroparquet(filename, columns=None, filter=None):
         has_serialized_columns = True
         serialized_columns = meta_dict['__serialized_columns__']
         for scol in serialized_columns:
-            names = _get_names(serialized_columns[scol])
             for name in _get_names(serialized_columns[scol]):
                 full_table_columns[name] = scol
 
