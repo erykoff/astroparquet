@@ -115,6 +115,25 @@ class IoTestCase(unittest.TestCase):
                 testing.assert_almost_equal(tbl2[name], tbl[name])
                 self.assertEqual(tbl2[name].dtype, tbl[name].dtype)
 
+        # Read columns -- including Time
+        tbl3 = astroparquet.read_astroparquet(fname, columns=['a', 'c', 'd'])
+        self.assertEqual(tbl3.dtype.names, ('a', 'c', 'd'))
+        for name in tbl3.columns:
+            if name == 'd':
+                self.assertTrue(isinstance(tbl3[name], Time))
+                for i in range(len(tbl3[name])):
+                    self.assertEqual(tbl3[name][i], tbl[name][i])
+            else:
+                testing.assert_almost_equal(tbl3[name], tbl[name])
+                self.assertEqual(tbl3[name].dtype, tbl[name].dtype)
+
+        # Read columns -- excluding Time
+        tbl4 = astroparquet.read_astroparquet(fname, columns=['a', 'b', 'c'])
+        self.assertEqual(tbl4.dtype.names, ('a', 'b', 'c'))
+        for name in tbl4.columns:
+            testing.assert_almost_equal(tbl4[name], tbl[name])
+            self.assertEqual(tbl4[name].dtype, tbl[name].dtype)
+
     def test_writeread_coordtable(self):
         """
         Test writing and reading of a table with coordinates.
@@ -142,6 +161,25 @@ class IoTestCase(unittest.TestCase):
             else:
                 testing.assert_almost_equal(tbl2[name], tbl[name])
                 self.assertEqual(tbl2[name].dtype, tbl[name].dtype)
+
+        # Read columns -- including SkyCoord
+        tbl3 = astroparquet.read_astroparquet(fname, columns=['a', 'c', 'd'])
+        self.assertEqual(tbl3.dtype.names, ('a', 'c', 'd'))
+        for name in tbl3.columns:
+            if name == 'd':
+                self.assertTrue(isinstance(tbl3[name], SkyCoord))
+                for i in range(len(tbl3[name])):
+                    self.assertEqual(tbl3[name][i], tbl[name][i])
+            else:
+                testing.assert_almost_equal(tbl3[name], tbl[name])
+                self.assertEqual(tbl3[name].dtype, tbl[name].dtype)
+
+        # Read columns -- excluding Time
+        tbl4 = astroparquet.read_astroparquet(fname, columns=['a', 'b', 'c'])
+        self.assertEqual(tbl4.dtype.names, ('a', 'b', 'c'))
+        for name in tbl4.columns:
+            testing.assert_almost_equal(tbl4[name], tbl[name])
+            self.assertEqual(tbl4[name].dtype, tbl[name].dtype)
 
     def setUp(self):
         self.test_dir = None
