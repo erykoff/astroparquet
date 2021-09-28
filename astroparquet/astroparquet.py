@@ -49,7 +49,7 @@ def write_astroparquet(filename, tbl, clobber=False):
         writer.write_table(pa_tbl)
 
 
-def read_astroparquet(filename, columns=None, filter=None):
+def read_astroparquet(filename, columns=None, filter=None, schema_only=False):
     """
     Read an astropy table in parquet format.
 
@@ -63,10 +63,14 @@ def read_astroparquet(filename, columns=None, filter=None):
         necessary.
     filter : `pyarrow.Expression`, optional
         Pyarrow filter expression to filter rows.
+    schema_only : `bool`, optional
+        Only read the schema/metadata with table information.
 
     Returns
     -------
     tbl : `astropy.Table`
+        Table will have zero rows and only metadata information
+        if schema_only is True.
     """
     ds = dataset.dataset(filename, format='parquet', partitioning='hive')
 
@@ -114,7 +118,11 @@ def read_astroparquet(filename, columns=None, filter=None):
     else:
         columns_to_read = schema.names
 
-    pa_tbl = ds.to_table(columns=columns_to_read, filter=filter)
+    if not schema_only:
+        pa_tbl = ds.to_table(columns=columns_to_read, filter=filter)
+        num_rows = pa_tbl.num_rows
+    else:
+        num_rows = 0
 
     dtype = []
     for name in columns_to_read:
@@ -125,15 +133,21 @@ def read_astroparquet(filename, columns=None, filter=None):
                 strlen = int(md[f'table::strlen::{name}'])
             else:
                 # Find the maximum string length.
-                strlen = max([len(row.as_py()) for row in pa_tbl['c']])
+                if schema_only:
+                    # Choose an arbitrary string length since we
+                    # are not reading the table.
+                    strlen = 10
+                else:
+                    strlen = max([len(row.as_py()) for row in pa_tbl['c']])
             dtype.append(f'U{strlen}')
         else:
             dtype.append(schema.field(name).type.to_pandas_dtype())
 
-    data = np.zeros(pa_tbl.num_rows, dtype=list(zip(columns_to_read, dtype)))
+    data = np.zeros(num_rows, dtype=list(zip(columns_to_read, dtype)))
 
-    for name in columns_to_read:
-        data[name][:] = pa_tbl[name].to_numpy()
+    if not schema_only:
+        for name in columns_to_read:
+            data[name][:] = pa_tbl[name].to_numpy()
 
     tbl = Table(data=data)
     if meta_dict is not None:
@@ -172,19 +186,3 @@ def _get_names(_dict):
             if key == 'name':
                 all_names.append(_dict['name'])
     return all_names
-
-
-def read_astroparquet_schema(filename):
-    """
-    Read an astroparquet schema (to get columns, units, etc)
-
-    Parameters
-    ----------
-    filename : `str`
-        Input filename
-
-    Returns
-    -------
-    something
-    """
-    pass

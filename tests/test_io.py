@@ -36,6 +36,11 @@ class IoTestCase(unittest.TestCase):
             testing.assert_almost_equal(tbl2[name], tbl[name])
             self.assertEqual(tbl2[name].dtype, tbl[name].dtype)
 
+        schema = astroparquet.read_astroparquet(fname, schema_only=True)
+        self.assertEqual(len(schema), 0)
+        for name in schema.columns:
+            self.assertEqual(schema[name].dtype, tbl[name].dtype)
+
     def test_writeread_unittable(self):
         """
         Test writing and reading of a table with units.
