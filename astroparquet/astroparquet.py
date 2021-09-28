@@ -114,14 +114,22 @@ def read_astroparquet(filename, columns=None, filter=None):
     else:
         columns_to_read = schema.names
 
+    pa_tbl = ds.to_table(columns=columns_to_read, filter=filter)
+
     dtype = []
     for name in columns_to_read:
         if schema.field(name).type == pa.string():
-            dtype.append('U%d' % (int(md[f'table::strlen::{name}'])))
+            md_name = f'table::strlen::{name}'
+            if md_name in md:
+                # String length from header.
+                strlen = int(md[f'table::strlen::{name}'])
+            else:
+                # Find the maximum string length.
+                strlen = max([len(row.as_py()) for row in pa_tbl['c']])
+            dtype.append(f'U{strlen}')
         else:
             dtype.append(schema.field(name).type.to_pandas_dtype())
 
-    pa_tbl = ds.to_table(columns=columns_to_read, filter=filter)
     data = np.zeros(pa_tbl.num_rows, dtype=list(zip(columns_to_read, dtype)))
 
     for name in columns_to_read:

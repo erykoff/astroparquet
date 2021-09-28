@@ -220,6 +220,50 @@ class IoTestCase(unittest.TestCase):
             testing.assert_almost_equal(tbl4[name], tbl[name])
             self.assertEqual(tbl4[name].dtype, tbl[name].dtype)
 
+    def test_writeread_stringtable(self):
+        """
+        Test writing and reading of a table with string columns.
+        """
+        self.test_dir = tempfile.mkdtemp(dir='./', prefix='TestAstroParquet-')
+
+        a = np.arange(10, dtype=np.int32)
+        b = np.arange(10, dtype=np.int64)
+        c = np.arange(10, dtype=np.int32).astype('U10')
+        c[1] = '01'
+        d = np.arange(10, dtype=np.float32).astype('U20')
+
+        tbl = Table([a, b, c, d], names=('a', 'b', 'c', 'd'))
+
+        fname = os.path.join(self.test_dir, 'test_string.parquet')
+
+        astroparquet.write_astroparquet(fname, tbl)
+
+        tbl2 = astroparquet.read_astroparquet(fname)
+
+        for name in tbl.columns:
+            if name == 'c' or name == 'd':
+                testing.assert_array_equal(tbl2[name], tbl[name])
+            else:
+                testing.assert_almost_equal(tbl2[name], tbl[name])
+            self.assertEqual(tbl2[name].dtype, tbl[name].dtype)
+
+        # Read columns -- including string
+        tbl3 = astroparquet.read_astroparquet(fname, columns=['a', 'c', 'd'])
+        self.assertEqual(tbl3.dtype.names, ('a', 'c', 'd'))
+        for name in tbl3.columns:
+            if name == 'c' or name == 'd':
+                testing.assert_array_equal(tbl2[name], tbl[name])
+            else:
+                testing.assert_almost_equal(tbl3[name], tbl[name])
+            self.assertEqual(tbl3[name].dtype, tbl[name].dtype)
+
+        # Read columns -- excluding string
+        tbl4 = astroparquet.read_astroparquet(fname, columns=['a', 'b'])
+        self.assertEqual(tbl4.dtype.names, ('a', 'b'))
+        for name in tbl4.columns:
+            testing.assert_almost_equal(tbl4[name], tbl[name])
+            self.assertEqual(tbl4[name].dtype, tbl[name].dtype)
+
     def setUp(self):
         self.test_dir = None
 
