@@ -181,6 +181,45 @@ class IoTestCase(unittest.TestCase):
             testing.assert_almost_equal(tbl4[name], tbl[name])
             self.assertEqual(tbl4[name].dtype, tbl[name].dtype)
 
+    def test_writeread_masktable(self):
+        """
+        Test writing and reading of a table with a masked column.
+        """
+        self.test_dir = tempfile.mkdtemp(dir='./', prefix='TestAstroParquet-')
+
+        a = np.arange(10, dtype=np.int32) * u.m
+        b = np.arange(10, dtype=np.int64) * (u.m/u.s)
+        c = np.arange(10, dtype=np.float32)
+        d = np.ma.array(np.arange(10, dtype=np.int32))
+        msk = np.zeros(10, dtype=bool)
+        msk[0] = True
+        d.mask = msk
+
+        tbl = Table([a, b, c, d], names=('a', 'b', 'c', 'd'))
+
+        fname = os.path.join(self.test_dir, 'test_mask.parquet')
+        astroparquet.write_astroparquet(fname, tbl)
+
+        tbl2 = astroparquet.read_astroparquet(fname)
+
+        for name in tbl.columns:
+            testing.assert_almost_equal(tbl2[name], tbl[name])
+            self.assertEqual(tbl2[name].dtype, tbl[name].dtype)
+
+        # Read columns -- including masked array
+        tbl3 = astroparquet.read_astroparquet(fname, columns=['a', 'c', 'd'])
+        self.assertEqual(tbl3.dtype.names, ('a', 'c', 'd'))
+        for name in tbl3.columns:
+            testing.assert_almost_equal(tbl3[name], tbl[name])
+            self.assertEqual(tbl3[name].dtype, tbl[name].dtype)
+
+        # Read columns -- excluding masked array
+        tbl4 = astroparquet.read_astroparquet(fname, columns=['a', 'b', 'c'])
+        self.assertEqual(tbl4.dtype.names, ('a', 'b', 'c'))
+        for name in tbl4.columns:
+            testing.assert_almost_equal(tbl4[name], tbl[name])
+            self.assertEqual(tbl4[name].dtype, tbl[name].dtype)
+
     def setUp(self):
         self.test_dir = None
 

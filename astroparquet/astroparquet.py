@@ -24,7 +24,7 @@ def write_astroparquet(filename, tbl, clobber=False):
     if not isinstance(tbl, (Table, QTable)):
         raise ValueError("Input tbl is not an astropy table.")
 
-    with serialize_context_as('fits'):
+    with serialize_context_as('hdf5'):
         # This sets the way nulls are handled; fix later.
         encode_tbl = serialize.represent_mixins_as_columns(tbl)
     meta_yaml = meta.get_yaml_from_table(encode_tbl)
@@ -43,8 +43,7 @@ def write_astroparquet(filename, tbl, clobber=False):
     schema = pa.schema(type_list, metadata=metadata)
 
     with parquet.ParquetWriter(filename, schema) as writer:
-        arrays = [pa.array(encode_tbl[name].data)
-                  for name in encode_tbl.dtype.names]
+        arrays = [pa.array(encode_tbl[col]) for col in encode_tbl.columns]
         pa_tbl = pa.Table.from_arrays(arrays, schema=schema)
 
         writer.write_table(pa_tbl)
