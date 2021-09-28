@@ -24,7 +24,7 @@ def write_astroparquet(filename, tbl, clobber=False):
     if not isinstance(tbl, (Table, QTable)):
         raise ValueError("Input tbl is not an astropy table.")
 
-    with serialize_context_as('fits'):
+    with serialize_context_as('hdf5'):
         # This sets the way nulls are handled; fix later.
         encode_tbl = serialize.represent_mixins_as_columns(tbl)
     meta_yaml = meta.get_yaml_from_table(encode_tbl)
@@ -43,8 +43,7 @@ def write_astroparquet(filename, tbl, clobber=False):
     schema = pa.schema(type_list, metadata=metadata)
 
     with parquet.ParquetWriter(filename, schema) as writer:
-        arrays = [pa.array(encode_tbl[name].data)
-                  for name in encode_tbl.dtype.names]
+        arrays = [pa.array(encode_tbl[col]) for col in encode_tbl.columns]
         pa_tbl = pa.Table.from_arrays(arrays, schema=schema)
 
         writer.write_table(pa_tbl)
@@ -59,8 +58,10 @@ def read_astroparquet(filename, columns=None, filter=None):
     filename : `str`
         Input filename
     columns : `list` [`str`], optional
-        Name of columns to read.
-    filter : `expression thing`, option
+        Name of astropy columns to read.
+        This will automatically expand to all sub-columns if
+        necessary.
+    filter : `pyarrow.Expression`, optional
         Pyarrow filter expression to filter rows.
 
     Returns
@@ -75,39 +76,55 @@ def read_astroparquet(filename, columns=None, filter=None):
     md = {key.decode(): schema.metadata[key].decode()
           for key in schema.metadata}
 
-    meta_dict = None
+    meta_dict = {}
     if 'table_meta_yaml' in md:
         meta_yaml = md.pop('table_meta_yaml').split('\n')
         meta_hdr = meta.get_header_from_yaml(meta_yaml)
         if 'meta' in meta_hdr:
             meta_dict = meta_hdr['meta']
     else:
-        meta_dict = None
         meta_hdr = None
 
-    names = schema.names
+    full_table_columns = {name: name for name in schema.names}
+    has_serialized_columns = False
+    if '__serialized_columns__' in meta_dict:
+        has_serialized_columns = True
+        serialized_columns = meta_dict['__serialized_columns__']
+        for scol in serialized_columns:
+            for name in _get_names(serialized_columns[scol]):
+                full_table_columns[name] = scol
 
     if columns is not None:
-        names = [name for name in schema.names
-                 if name in columns]
+        columns_to_read = []
+        for column in columns:
+            cols = [full_table_column
+                    for full_table_column in full_table_columns
+                    if column == full_table_columns[full_table_column]]
+            columns_to_read.extend(cols)
 
-        if names == []:
+        if columns_to_read == []:
             # Should this raise instead?
             return Table()
+
+        # We need to pop any unread serialized columns out of the meta_dict.
+        if has_serialized_columns:
+            for scol in list(meta_dict['__serialized_columns__'].keys()):
+                if scol not in columns:
+                    meta_dict['__serialized_columns__'].pop(scol)
     else:
-        names = schema.names
+        columns_to_read = schema.names
 
     dtype = []
-    for name in names:
+    for name in columns_to_read:
         if schema.field(name).type == pa.string():
             dtype.append('U%d' % (int(md[f'table::strlen::{name}'])))
         else:
             dtype.append(schema.field(name).type.to_pandas_dtype())
 
-    pa_tbl = ds.to_table(columns=names, filter=None)
-    data = np.zeros(pa_tbl.num_rows, dtype=list(zip(names, dtype)))
+    pa_tbl = ds.to_table(columns=columns_to_read, filter=filter)
+    data = np.zeros(pa_tbl.num_rows, dtype=list(zip(columns_to_read, dtype)))
 
-    for name in names:
+    for name in columns_to_read:
         data[name][:] = pa_tbl[name].to_numpy()
 
     tbl = Table(data=data)
@@ -124,6 +141,29 @@ def read_astroparquet(filename, columns=None, filter=None):
     tbl = serialize._construct_mixins_from_columns(tbl)
 
     return tbl
+
+
+def _get_names(_dict):
+    """Recursively find the names in a serialized column dictionary.
+
+    Parameters
+    ----------
+    _dict : `dict`
+        Dictionary from astropy __serialized_columns__
+
+    Returns
+    -------
+    all_names : `list` [`str`]
+        All the column names mentioned in _dict and sub-dicts.
+    """
+    all_names = []
+    for key in _dict:
+        if isinstance(_dict[key], dict):
+            all_names.extend(_get_names(_dict[key]))
+        else:
+            if key == 'name':
+                all_names.append(_dict['name'])
+    return all_names
 
 
 def read_astroparquet_schema(filename):
